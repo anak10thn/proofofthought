@@ -14,6 +14,37 @@ export class DSLInterpreter {
     this.vars = {};
   }
 
+  /**
+   * Detect direct contradictions in facts (e.g., A=true and A=false)
+   */
+  private detectContradictions(rules: any[]) {
+    const factValues: Record<string, boolean[]> = {};
+
+    // Collect all fact values
+    for (const rule of rules) {
+      if (rule.kind === "fact" && rule.subject) {
+        const varName = rule.subject;
+        const value = rule.value !== false; // default to true if not specified
+        
+        if (!factValues[varName]) {
+          factValues[varName] = [];
+        }
+        factValues[varName].push(value);
+      }
+    }
+
+    // Check for contradictions
+    for (const [varName, values] of Object.entries(factValues)) {
+      const hasTrue = values.includes(true);
+      const hasFalse = values.includes(false);
+      
+      if (hasTrue && hasFalse) {
+        console.warn(`Warning: Direct contradiction detected for variable '${varName}' (both true and false)`);
+        // Note: We don't stop processing here, as Z3 can sometimes handle contradictions meaningfully
+      }
+    }
+  }
+
   parse(dsl: DSL) {
     // console.log('Parsing DSL:', JSON.stringify(dsl, null, 2));
     for (const v of dsl.vars) {
@@ -21,11 +52,32 @@ export class DSLInterpreter {
       // console.log(`Created boolean constant ${v}:`, this.vars[v]);
     }
 
+    // Pre-process rules to detect direct contradictions
+    this.detectContradictions(dsl.rules);
+
+    // Helper function to ensure a variable exists
+    const ensureVariable = (varName: string) => {
+      if (!this.vars[varName]) {
+        this.vars[varName] = this.z3Helper.createBoolConst(varName);
+        // console.log(`Dynamically created boolean constant ${varName}:`, this.vars[varName]);
+      }
+    };
+
     for (const r of dsl.rules) {
       if (r.kind === "fact") {
         // console.log(`Adding fact: ${r.subject}`);
         if (r.subject) {
-          this.solver.add(this.vars[r.subject]);
+          // Ensure the variable exists
+          ensureVariable(r.subject);
+          
+          // Handle negation with value field
+          if (r.value === false) {
+            // Add negation of the variable
+            this.solver.add(this.z3Helper.createNot(this.vars[r.subject]));
+          } else {
+            // Default behavior (value is true or undefined)
+            this.solver.add(this.vars[r.subject]);
+          }
         }
       } else if (r.kind === "imply") {
         // Handle both formats: {subject, object} and {if, then}
@@ -45,6 +97,10 @@ export class DSLInterpreter {
           continue;
         }
         
+        // Ensure all variables exist
+        subjVars.forEach(v => ensureVariable(v));
+        ensureVariable(objVar);
+        
         const obj = this.vars[objVar];
         // console.log(`Creating implication: ${subjVars.join(' ∧ ')} -> ${objVar}`);
         // console.log(`Object expression:`, obj);
@@ -62,17 +118,34 @@ export class DSLInterpreter {
         }
         
         if (conjSubj !== null) {
-          const notSubj = this.z3Helper.createNot(conjSubj);
-          const implication = this.z3Helper.createOr(
-            notSubj,
-            obj
-          );
-          // console.log(`Implication created:`, implication);
-          this.solver.add(implication);
+          // Handle negation in the consequent
+          let finalObj = obj;
+          if (r.value === false) {
+            // If the rule specifies value: false, negate the consequent
+            finalObj = this.z3Helper.createNot(obj);
+          }
+          
+          // Ensure both expressions are valid before creating implication
+          if (conjSubj && finalObj) {
+            const notSubj = this.z3Helper.createNot(conjSubj);
+            const implication = this.z3Helper.createOr(
+              notSubj,
+              finalObj
+            );
+            // console.log(`Implication created:`, implication);
+            this.solver.add(implication);
+          } else {
+            console.warn(`Warning: Skipping invalid implication rule:`, r);
+          }
         }
       }
     }
 
+    // Ensure the query variable exists
+    if (!this.vars[dsl.query]) {
+      this.vars[dsl.query] = this.z3Helper.createBoolConst(dsl.query);
+    }
+    
     const queryVar = this.vars[dsl.query];
     // console.log(`Query variable ${dsl.query}:`, queryVar);
     return queryVar;
