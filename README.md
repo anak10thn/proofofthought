@@ -180,6 +180,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [OpenAI](https://openai.com/) for the GPT models
 - [Z3](https://github.com/Z3Prover/z3) theorem prover
 - [z3-solver](https://www.npmjs.com/package/z3-solver) JavaScript bindings for Z3
+- [Proof of Thought Paper](https://arxiv.org/pdf/2409.17270) - Original research paper this implementation is based on
 
 ## Contact
 
