@@ -1,0 +1,31 @@
+{
+  "name": "proofofthought",
+  "version": "0.0.1",
+  "description": "A Proof of Thought system combining LLM reasoning with Z3 theorem proving",
+  "main": "dist/lib/index.js",
+  "types": "dist/lib/index.d.ts",
+  "bin": {
+    "pot": "dist/examples/main.js"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/examples/main.js",
+    "dev": "ts-node src/examples/main.ts",
+    "example": "node dist/examples/main.js"
+  },
+  "keywords": ["logic", "reasoning", "theorem-proving", "z3", "llm"],
+  "author": "anak10thn@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^6.1.0",
+    "z3-solver": "^4.15.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
